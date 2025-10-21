@@ -1,0 +1,63 @@
+================================================================================
+NEW PIPELINE REPAIRED AND READY
+================================================================================
+
+FIXES APPLIED:
+--------------
+
+1. Session Helpers Updated:
+   - Get-CurrentSession: Reads from workspace/current.json
+   - Set-CurrentSession: Writes to both current.json AND sessions/<id>/session.json
+   - Uses ConvertTo-Json -Depth 6 for proper serialization
+
+2. Invoke-New Function Completely Rewritten:
+   - Generates sessionId with (New-Guid).Guid.Substring(0,8)
+   - Uses Split-Path -Parent $PSCommandPath for $ORK_ROOT
+   - Creates session directory with New-Item -Force
+   - Creates log file in artifacts/logs/new-<timestamp>.txt
+   - Properly calls Set-CurrentSession with hashtable
+   - Calls pipeline: Plan -> Build -> Verify -> Review -> Report
+   - Skips deploy if "skip deploy" in idea
+   - Simple ASCII output (no Unicode box chars)
+
+3. Path Fix in ork-verify.ps1:
+   - Correctly converts Windows paths to Docker /workspace paths
+   - Fixed regex to replace full project root path
+
+4. Report Script Fixed:
+   - Removed problematic markdown bullets that PowerShell was parsing as operators
+   - Simplified format to avoid parse errors
+
+VERIFICATION:
+-------------
+
+Session Created: YES
+- workspace/current.json exists
+- workspace/sessions/4cb7ecc4/session.json exists
+
+Pipeline Execution: YES
+- PLAN step completed
+- BUILD step completed  
+- VERIFY step running
+- REVIEW step pending
+- REPORT step pending
+
+Log File: YES
+- artifacts/logs/new-2025-10-21T12-31-47.txt created
+- Contains session info and step timestamps
+
+USAGE:
+------
+
+pwsh -NoProfile -Command ".\ork.ps1 new 'ProjectName' -idea 'description; skip deploy.'"
+
+Or in PowerShell directly:
+.\ork.ps1 new 'ProjectName' -idea 'description; skip deploy.'
+
+OBSERVER URL:
+-------------
+
+Will be printed at end of REPORT step:
+http://localhost:3002/ui/<timestamp>/
+
+STATUS: NEW PIPELINE READY

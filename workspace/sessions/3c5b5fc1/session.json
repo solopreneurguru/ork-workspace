@@ -1,0 +1,9 @@
+﻿{
+    "id":  "3c5b5fc1",
+    "log_file":  "C:\\wrk\\ork\\artifacts\\logs\\new-2025-10-21T12-29-57.txt",
+    "artifacts_dir":  "C:\\wrk\\ork\\artifacts",
+    "created_at":  "2025-10-21T12:29:57",
+    "idea":  "Simple test app; skip deploy.",
+    "status":  "DEPLOY",
+    "project":  "TestApp"
+}

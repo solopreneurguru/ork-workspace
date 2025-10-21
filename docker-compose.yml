@@ -1,0 +1,72 @@
+networks:
+  ork-net:
+    driver: bridge
+
+volumes:
+  workspace:
+
+services:
+  orchestrator:
+    build:
+      context: ./apps/orchestrator
+      dockerfile: Dockerfile
+    container_name: ork-orchestrator
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - ORCHESTRATOR_PORT=3001
+    env_file:
+      - .env
+    volumes:
+      - ./:/workspace
+      - ./artifacts:/workspace/artifacts
+      - ./workspace:/workspace/workspace
+      - ./checklists:/workspace/checklists
+      - ./plans:/workspace/plans
+    networks:
+      - ork-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  verifier:
+    build:
+      context: .
+      dockerfile: apps/verifier/Dockerfile
+    container_name: ork-verifier
+    volumes:
+      - ./:/workspace
+    networks:
+      - ork-net
+    restart: unless-stopped
+
+  observer:
+    build:
+      context: ./apps/observer
+      dockerfile: Dockerfile
+    container_name: ork-observer
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./artifacts:/workspace/artifacts
+    networks:
+      - ork-net
+    restart: unless-stopped
+
+  demo-web:
+    image: node:20-alpine
+    container_name: ork-demo-web
+    working_dir: /app
+    command: sh -c "npm install express && node index.js"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./apps/demo-web:/app
+    networks:
+      - ork-net
+    restart: unless-stopped

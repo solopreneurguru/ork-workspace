@@ -511,7 +511,11 @@ function Invoke-Review {
 
 # Command: deploy
 function Invoke-Deploy {
-    param([string]$Target = "vercel", [switch]$Confirm)
+    param(
+        [string]$Target = "vercel",
+        [switch]$Confirm,
+        [switch]$Prod = $false
+    )
 
     if (-not $Confirm) {
         Write-ORK "Deploy requires -Confirm flag for safety" "error"
@@ -527,7 +531,11 @@ function Invoke-Deploy {
     Write-ORK "DEPLOY: Deploying to $Target..." "info"
 
     Push-Location (Join-Path $ORK_ROOT "scripts")
-    .\ork-deploy.ps1 -Target $Target -Confirm
+    if ($Prod) {
+        .\ork-deploy.ps1 -Target $Target -Confirm -Prod
+    } else {
+        .\ork-deploy.ps1 -Target $Target -Confirm
+    }
     Pop-Location
 
     $session.status = "REPORT"

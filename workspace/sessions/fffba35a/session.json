@@ -1,0 +1,9 @@
+﻿{
+    "id":  "fffba35a",
+    "log_file":  "C:\\wrk\\ork\\artifacts\\logs\\new-2025-10-21T12-35-12.txt",
+    "artifacts_dir":  "C:\\wrk\\ork\\artifacts",
+    "created_at":  "2025-10-21T12:35:12",
+    "idea":  "Test the complete pipeline; skip deploy.",
+    "status":  "DEPLOY",
+    "project":  "FinalTest"
+}

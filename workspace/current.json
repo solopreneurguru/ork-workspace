@@ -1,0 +1,9 @@
+﻿{
+    "id":  "1506d596",
+    "log_file":  "C:\\wrk\\ork\\artifacts\\logs\\new-2025-10-21T12-40-58.txt",
+    "artifacts_dir":  "C:\\wrk\\ork\\artifacts",
+    "created_at":  "2025-10-21T12:40:58",
+    "idea":  "Next.js + Tailwind one-pager with a lead form and CSV export; unit tests; a Playwright checklist that fills and submits the form and sees a success state; skip deploy.",
+    "status":  "DONE",
+    "project":  "LeadGenLite"
+}

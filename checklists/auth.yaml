@@ -1,0 +1,75 @@
+name: "Authentication Flow"
+description: "Verify signup, login, and dashboard access"
+base_url: "http://ork-demo-web:3000"
+
+checkpoints:
+  - id: signup_form_load
+    description: "Signup form loads with all fields"
+    actions:
+      - type: navigate
+        url: "/signup"
+      - type: wait_for
+        selector: "form#signup-form"
+      - type: assert_text
+        selector: "h1"
+        text: "Create Account"
+      - type: screenshot
+        name: "01-signup-form"
+
+  - id: signup_submission
+    description: "User can create account"
+    actions:
+      - type: type
+        selector: "#email"
+        text: "test@ork.dev"
+      - type: type
+        selector: "#password"
+        text: "P@ssw0rd123"
+      - type: type
+        selector: "#password-confirm"
+        text: "P@ssw0rd123"
+      - type: click
+        selector: "button#create-account"
+      - type: screenshot
+        name: "02-signup-submit"
+
+  - id: dashboard_redirect
+    description: "Redirects to dashboard after signup"
+    actions:
+      - type: wait_for
+        selector: "[data-testid='dashboard']"
+        timeout: 5000
+      - type: assert_url
+        contains: "/dashboard"
+      - type: screenshot
+        name: "03-dashboard-load"
+
+  - id: logout
+    description: "User can logout"
+    actions:
+      - type: click
+        selector: "button#logout"
+      - type: wait_for
+        selector: "form#login-form"
+      - type: assert_url
+        contains: "/login"
+      - type: screenshot
+        name: "04-logout"
+
+  - id: login
+    description: "User can login with existing credentials"
+    actions:
+      - type: type
+        selector: "#email"
+        text: "test@ork.dev"
+      - type: type
+        selector: "#password"
+        text: "P@ssw0rd123"
+      - type: click
+        selector: "button#login"
+      - type: wait_for
+        selector: "[data-testid='dashboard']"
+      - type: assert_url
+        contains: "/dashboard"
+      - type: screenshot
+        name: "05-login-success"
