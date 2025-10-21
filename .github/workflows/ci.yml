@@ -1,69 +1,69 @@
 name: CI
-
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
-    branches: [main]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-
-    env:
-      WORKSPACE: ${{ github.workspace }}
-
+    timeout-minutes: 20
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
           cache: 'npm'
-          cache-dependency-path: 'apps/web/package-lock.json'
+          cache-dependency-path: |
+            package-lock.json
+            apps/web/package-lock.json
 
-      - name: Install root dev dependencies
+      - name: Install root deps for runner
         run: |
-          if [ ! -f package.json ]; then
-            npm init -y
-            npm install --save-dev @playwright/test yaml fs-extra
+          if [ -f package-lock.json ]; then npm ci; else npm i --no-audit --no-fund; fi
+          npm i --no-save @playwright/test yaml fs-extra wait-on
+
+      - name: Install Playwright browsers (+ system deps)
+        run: npx playwright install --with-deps chromium
+
+      - name: Start test web (prefer demo-web; else Next.js app)
+        run: |
+          set -eux
+          if [ -f apps/demo-web/index.js ]; then
+            cd apps/demo-web
+            npm init -y >/dev/null 2>&1 || true
+            npm i express
+            nohup node index.js >/tmp/web.log 2>&1 &
+          elif [ -f apps/web/package.json ]; then
+            cd apps/web
+            if [ -f package-lock.json ]; then npm ci; else npm i --no-audit --no-fund; fi
+            npm run build
+            nohup npm start -- -p 3000 >/tmp/web.log 2>&1 &
           else
-            npm ci || npm install
+            echo "No test web found"; exit 1
           fi
 
-      - name: Install Playwright browsers
-        uses: microsoft/playwright-github-action@v1
+      - name: Wait for app on :3000
+        run: npx wait-on http://localhost:3000
 
-      - name: Install Playwright
-        run: npx playwright install chromium
-
-      - name: Build and start Next.js app
-        working-directory: apps/web
-        run: |
-          npm ci || npm install
-          npm run build
-          nohup npm start -- -p 3000 > ../../artifacts/ci-web.log 2>&1 &
-          echo $! > ../../artifacts/web.pid
-
-      - name: Wait for app to be ready
-        run: npx wait-on http://localhost:3000 --timeout 60000
-
-      - name: Run UI smoke tests
+      - name: Run YAML UI smoke
+        env:
+          WORKSPACE: ${{ github.workspace }}
         run: node tools/ui-runner-cli.js checklists/auth.yaml
 
-      - name: Upload screenshots
+      - name: Upload UI screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ui-screenshots
           path: artifacts/ui
-          if-no-files-found: ignore
+          if-no-files-found: warn
 
-      - name: Cleanup
+      - name: Upload web log
         if: always()
-        run: |
-          if [ -f artifacts/web.pid ]; then
-            kill $(cat artifacts/web.pid) || true
-          fi
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-log
+          path: /tmp/web.log
+          if-no-files-found: ignore
