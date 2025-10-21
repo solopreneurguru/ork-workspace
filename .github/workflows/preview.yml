@@ -1,0 +1,166 @@
+name: Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            apps/web/package-lock.json
+
+      - name: Install root dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm i --no-audit --no-fund; fi
+          npm i --no-save @playwright/test yaml fs-extra wait-on
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Install and build Next.js app
+        working-directory: apps/web
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm i --no-audit --no-fund; fi
+          npm run build
+
+      - name: Deploy to Vercel Preview
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        working-directory: apps/web
+        run: |
+          npm i -g vercel
+          PREVIEW_URL=$(vercel deploy --token=$VERCEL_TOKEN --yes 2>&1 | grep -oP 'https://[^\s]+\.vercel\.app' | head -1)
+          echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
+          echo "Preview URL: $PREVIEW_URL"
+
+      - name: Wait for deployment
+        run: |
+          echo "Waiting for ${{ steps.deploy.outputs.preview_url }} to be ready..."
+          npx wait-on ${{ steps.deploy.outputs.preview_url }} --timeout 60000
+
+      - name: Run UI smoke tests
+        id: smoke
+        env:
+          WORKSPACE: ${{ github.workspace }}
+        run: |
+          set +e
+          node tools/ui-runner-cli.js checklists/auth.yaml ${{ steps.deploy.outputs.preview_url }}
+          SMOKE_EXIT=$?
+          echo "exit_code=$SMOKE_EXIT" >> $GITHUB_OUTPUT
+
+          # Parse results
+          RESULT_FILE=$(find artifacts/ui -name "result.json" -type f | sort -r | head -1)
+          if [ -f "$RESULT_FILE" ]; then
+            PASSED=$(jq -r '.checkpointsPassed' "$RESULT_FILE")
+            TOTAL=$(jq -r '.checkpointsTotal' "$RESULT_FILE")
+            SUCCESS=$(jq -r '.success' "$RESULT_FILE")
+            echo "passed=$PASSED" >> $GITHUB_OUTPUT
+            echo "total=$TOTAL" >> $GITHUB_OUTPUT
+            echo "success=$SUCCESS" >> $GITHUB_OUTPUT
+          else
+            echo "passed=0" >> $GITHUB_OUTPUT
+            echo "total=0" >> $GITHUB_OUTPUT
+            echo "success=false" >> $GITHUB_OUTPUT
+          fi
+
+          exit $SMOKE_EXIT
+
+      - name: Upload UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-screenshots-pr-${{ github.event.pull_request.number }}
+          path: artifacts/ui
+          if-no-files-found: warn
+
+      - name: Post PR comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const passed = '${{ steps.smoke.outputs.passed }}';
+            const total = '${{ steps.smoke.outputs.total }}';
+            const success = '${{ steps.smoke.outputs.success }}' === 'true';
+            const previewUrl = '${{ steps.deploy.outputs.preview_url }}';
+            const runId = '${{ github.run_id }}';
+            const prNumber = context.issue.number;
+
+            const statusIcon = success ? '✅' : '❌';
+            const statusText = success ? 'PASSED' : 'FAILED';
+
+            const body = `## ${statusIcon} Preview Deployment ${statusText}
+
+            **Preview URL:** ${previewUrl}
+
+            ### UI Smoke Tests
+            - **Status:** ${statusIcon} ${statusText}
+            - **Checkpoints:** ${passed}/${total} passed
+
+            ### Artifacts
+            - 📸 [Screenshots](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId})
+
+            <details>
+            <summary>Test Details</summary>
+
+            \`\`\`
+            Workflow: Preview
+            Run ID: ${runId}
+            PR: #${prNumber}
+            Commit: ${context.sha.substring(0, 7)}
+            \`\`\`
+            </details>
+
+            ---
+            🤖 *Automated preview deployment with UI verification*`;
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Preview Deployment')
+            );
+
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: body
+              });
+            }
