@@ -50,7 +50,7 @@ jobs:
       - name: Run YAML UI smoke
         env:
           WORKSPACE: ${{ github.workspace }}
-        run: node tools/ui-runner-cli.js checklists/auth.yaml
+        run: node tools/ui-runner-cli.js checklists/auth.yaml http://localhost:3000
 
       - name: Upload UI screenshots
         if: always()

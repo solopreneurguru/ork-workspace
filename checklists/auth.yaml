@@ -1,6 +1,6 @@
 name: "Authentication Flow"
 description: "Verify signup, login, and dashboard access"
-base_url: "http://localhost:3000"
+base_url: "http://ork-demo-web:3000"
 
 checkpoints:
   - id: signup_form_load
