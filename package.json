@@ -1,0 +1,15 @@
+{
+  "name": "ork-workspace",
+  "version": "1.1.0",
+  "description": "ORK Orchestrator - Multi-agent orchestration system",
+  "private": true,
+  "scripts": {
+    "test": "echo \"Error: no test command\" && exit 0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "yaml": "^2.6.1",
+    "fs-extra": "^11.2.0",
+    "wait-on": "^8.0.1"
+  }
+}
