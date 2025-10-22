@@ -1,0 +1,14 @@
+name: "Health Check"
+description: "Homepage renders"
+base_url: "http://ork-demo-web:3000"
+
+checkpoints:
+  - id: home
+    description: "Homepage loads"
+    actions:
+      - type: navigate
+        url: "/"
+      - type: wait_for
+        selector: "body"
+      - type: screenshot
+        name: "home"
