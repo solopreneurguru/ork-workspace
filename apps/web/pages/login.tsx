@@ -14,6 +14,9 @@ export default function Login() {
     const storedPassword = localStorage.getItem('password')
 
     if (email === storedEmail && password === storedPassword) {
+      // Set session flag
+      localStorage.setItem('isLoggedIn', 'true')
+
       // Redirect to dashboard on match
       router.push('/dashboard')
     } else {

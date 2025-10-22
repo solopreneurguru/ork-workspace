@@ -4,8 +4,8 @@ export default function Dashboard() {
   const router = useRouter()
 
   const handleLogout = () => {
-    // Clear localStorage
-    localStorage.clear()
+    // Clear session flag only (keep credentials for re-login)
+    localStorage.removeItem('isLoggedIn')
 
     // Redirect to login
     router.push('/login')

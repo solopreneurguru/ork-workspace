@@ -13,6 +13,7 @@ export default function Signup() {
     // Save credentials to localStorage
     localStorage.setItem('email', email)
     localStorage.setItem('password', password)
+    localStorage.setItem('isLoggedIn', 'true')
 
     // Redirect to dashboard
     router.push('/dashboard')
