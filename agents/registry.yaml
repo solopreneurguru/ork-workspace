@@ -1,0 +1,339 @@
+# ORK Agent Registry
+#
+# Defines all agents, their roles, inputs, outputs, and quality gates
+# Pipeline orchestrator uses this to determine execution order and validation
+
+agents:
+  # ========================================
+  # PLANNING PHASE
+  # ========================================
+
+  - id: planner
+    name: "Planner Agent"
+    phase: plan
+    description: "Analyzes BuildSpec and creates implementation plan"
+
+    inputs:
+      - workspace/spec.json
+      - BuildSpec features list
+
+    outputs:
+      - plans/plan-*.md
+      - Milestone breakdown
+
+    preconditions:
+      - BuildSpec exists and is valid
+
+    postconditions:
+      - Plan file created
+      - Milestones defined
+
+    quality_gates: []
+
+    max_attempts: 1
+    timeout_seconds: 300
+
+  # ========================================
+  # SCAFFOLDING PHASE
+  # ========================================
+
+  - id: scaffolder
+    name: "Scaffolder Agent"
+    phase: build
+    description: "Scaffolds apps from templates based on BuildSpec targets"
+
+    inputs:
+      - workspace/spec.json
+      - templates/*
+
+    outputs:
+      - apps/web (if web in targets)
+      - apps/mobile (if mobile in targets)
+      - apps/backend (if backend in targets)
+      - checklists/* (target-specific)
+
+    preconditions:
+      - BuildSpec exists
+      - Templates exist
+      - apps/* do not exist (or flag to overwrite)
+
+    postconditions:
+      - All target apps scaffolded
+      - Variables rendered
+      - Checklists copied
+
+    quality_gates: []
+
+    max_attempts: 1
+    timeout_seconds: 120
+
+  # ========================================
+  # IMPLEMENTATION PHASE
+  # ========================================
+
+  - id: implementer-web
+    name: "Web Implementer Agent"
+    phase: build
+    description: "Implements web-specific features (Next.js)"
+
+    inputs:
+      - workspace/spec.json
+      - apps/web
+      - BuildSpec features
+
+    outputs:
+      - apps/web (modified)
+      - Feature implementations
+      - Tests
+
+    preconditions:
+      - apps/web exists
+      - package.json valid
+
+    postconditions:
+      - npm install succeeds
+      - npm run build succeeds
+      - Lint passes
+      - Type check passes
+
+    quality_gates:
+      - ui_smoke_web
+
+    max_attempts: 3
+    timeout_seconds: 600
+
+  - id: implementer-backend
+    name: "Backend Implementer Agent"
+    phase: build
+    description: "Implements backend-specific features (Express)"
+
+    inputs:
+      - workspace/spec.json
+      - apps/backend
+      - BuildSpec features
+
+    outputs:
+      - apps/backend (modified)
+      - API endpoints
+      - Tests
+
+    preconditions:
+      - apps/backend exists
+      - package.json valid
+
+    postconditions:
+      - npm install succeeds
+      - npm run build succeeds
+      - Lint passes
+      - Type check passes
+      - Health endpoint responds
+
+    quality_gates:
+      - api_smoke
+
+    max_attempts: 3
+    timeout_seconds: 600
+
+  - id: implementer-mobile
+    name: "Mobile Implementer Agent"
+    phase: build
+    description: "Implements mobile-specific features (Expo)"
+
+    inputs:
+      - workspace/spec.json
+      - apps/mobile
+      - BuildSpec features
+
+    outputs:
+      - apps/mobile (modified)
+      - Screens/components
+      - Tests
+
+    preconditions:
+      - apps/mobile exists
+      - app.json valid
+
+    postconditions:
+      - npm install succeeds
+      - expo doctor passes
+      - Lint passes
+
+    quality_gates:
+      - mobile_smoke
+
+    max_attempts: 3
+    timeout_seconds: 600
+
+  # ========================================
+  # INTEGRATION PHASE
+  # ========================================
+
+  - id: integrator
+    name: "Integrator Agent"
+    phase: build
+    description: "Integrates multiple targets (web + backend, mobile + backend)"
+
+    inputs:
+      - workspace/spec.json
+      - apps/* (all targets)
+
+    outputs:
+      - Integration configs
+      - CORS settings
+      - API client code
+
+    preconditions:
+      - Multiple targets exist
+      - Individual implementers succeeded
+
+    postconditions:
+      - API clients configured
+      - CORS enabled
+      - Environment variables set
+
+    quality_gates:
+      - integration_tests
+
+    max_attempts: 2
+    timeout_seconds: 300
+
+  # ========================================
+  # VERIFICATION PHASE
+  # ========================================
+
+  - id: verifier
+    name: "Verifier Agent"
+    phase: verify
+    description: "Runs UI and API smoke tests from checklists"
+
+    inputs:
+      - checklists/*.yaml
+      - Running apps
+
+    outputs:
+      - artifacts/ui/*/result.json
+      - Screenshots
+      - Test results
+
+    preconditions:
+      - Checklists exist
+      - Apps are running or deployed
+
+    postconditions:
+      - All checkpoints pass
+
+    quality_gates:
+      - ui_smoke_web
+      - api_smoke
+      - mobile_smoke
+      - e2e
+
+    max_attempts: 1
+    timeout_seconds: 600
+
+  # ========================================
+  # DEPLOYMENT PHASE
+  # ========================================
+
+  - id: deployer
+    name: "Deployer Agent"
+    phase: deploy
+    description: "Deploys to target platforms (Vercel, Fly.io, EAS)"
+
+    inputs:
+      - workspace/spec.json
+      - apps/*
+      - Deploy configs
+
+    outputs:
+      - Deployment URLs
+      - artifacts/deployments/*.json
+
+    preconditions:
+      - All quality gates passed
+      - Deploy credentials configured
+
+    postconditions:
+      - Apps deployed
+      - URLs accessible
+      - Health checks pass
+
+    quality_gates: []
+
+    max_attempts: 2
+    timeout_seconds: 900
+
+  # ========================================
+  # REVIEW PHASE
+  # ========================================
+
+  - id: reviewer
+    name: "Reviewer Agent"
+    phase: review
+    description: "Reviews code quality and generates ship decision"
+
+    inputs:
+      - apps/*
+      - Test results
+      - Verification results
+
+    outputs:
+      - artifacts/reports/review-latest.yaml
+      - Ship decision (APPROVED/BLOCKED)
+
+    preconditions:
+      - All implementers completed
+      - Verification passed
+
+    postconditions:
+      - Review file generated
+      - Ship status determined
+
+    quality_gates: []
+
+    max_attempts: 1
+    timeout_seconds: 300
+
+# ========================================
+# PIPELINE CONFIGURATION
+# ========================================
+
+pipeline:
+  max_loop_iterations: 3
+
+  phases:
+    - name: plan
+      agents: [planner]
+      required: true
+
+    - name: build
+      agents: [scaffolder, implementer-web, implementer-backend, implementer-mobile, integrator]
+      required: true
+      parallel: false  # Run sequentially
+
+    - name: verify
+      agents: [verifier]
+      required: true
+
+    - name: review
+      agents: [reviewer]
+      required: true
+
+    - name: deploy
+      agents: [deployer]
+      required: false  # Optional
+
+  quality_loop:
+    enabled: true
+    max_attempts: 3
+    retry_on_failure: true
+
+  logging:
+    per_agent_logs: true
+    log_directory: artifacts/logs/agents
+    include_timestamps: true
+
+  notifications:
+    on_phase_complete: true
+    on_quality_gate_fail: true
+    on_pipeline_complete: true

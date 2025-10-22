@@ -14,6 +14,26 @@ if ($Safe) {
     Write-Host "Running in SAFE mode (no destructive ops without confirmation)" -ForegroundColor Yellow
 }
 
+# Use Pipeline Orchestrator if Milestone 1, otherwise legacy build
+if ($Milestone -eq 1) {
+    Write-Host "Running Pipeline Orchestrator..." -ForegroundColor Cyan
+    $ORK_ROOT = Split-Path -Parent $PSScriptRoot
+    Push-Location $ORK_ROOT
+
+    # Ensure log directory exists
+    $logDir = Join-Path $ORK_ROOT "artifacts\logs\agents"
+    if (-not (Test-Path $logDir)) {
+        New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+    }
+
+    # Run pipeline
+    npx tsx apps/orchestrator/src/pipeline.ts
+
+    Pop-Location
+    return
+}
+
+# Legacy build for other milestones
 # Step 0: Run Scaffolder if apps/* are missing
 $appsDir = Join-Path (Split-Path -Parent $PSScriptRoot) "apps"
 $webDir = Join-Path $appsDir "web"
