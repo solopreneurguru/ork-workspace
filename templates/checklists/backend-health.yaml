@@ -1,0 +1,13 @@
+name: "Backend API Health Check"
+description: "Verify backend API is running"
+base_url: "http://localhost:3000"
+
+checkpoints:
+  - id: health_endpoint
+    description: "Health endpoint responds"
+    actions:
+      - type: http_get
+        url: "/health"
+        expect_status: 200
+        expect_json:
+          status: "healthy"

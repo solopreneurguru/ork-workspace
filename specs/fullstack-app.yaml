@@ -1,0 +1,23 @@
+name: TaskMaster
+targets: [web, mobile, backend]
+monetization:
+  type: freemium
+auth:
+  provider: google
+deploy:
+  web: vercel
+  mobile: expo-eas
+  backend: fly-io
+quality_gates:
+  - ui_smoke_web
+  - mobile_smoke
+  - api_smoke
+features:
+  - task-management
+  - sync-across-devices
+  - push-notifications
+stack:
+  web: nextjs
+  backend: express
+  database: mongodb
+description: "Full-stack task management app with cross-device sync"

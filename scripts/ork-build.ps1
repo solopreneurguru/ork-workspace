@@ -14,7 +14,26 @@ if ($Safe) {
     Write-Host "Running in SAFE mode (no destructive ops without confirmation)" -ForegroundColor Yellow
 }
 
-# TODO: Call Builder agent via orchestrator API
+# Step 0: Run Scaffolder if apps/* are missing
+$appsDir = Join-Path (Split-Path -Parent $PSScriptRoot) "apps"
+$webDir = Join-Path $appsDir "web"
+$mobileDir = Join-Path $appsDir "mobile"
+$backendDir = Join-Path $appsDir "backend"
+
+$needsScaffold = $false
+if (-not (Test-Path $webDir) -and -not (Test-Path $mobileDir) -and -not (Test-Path $backendDir)) {
+    $needsScaffold = $true
+}
+
+if ($needsScaffold) {
+    Write-Host "Step 0: Scaffolding apps from templates..." -ForegroundColor Cyan
+    $ORK_ROOT = Split-Path -Parent $PSScriptRoot
+    Push-Location $ORK_ROOT
+    npx tsx agents/scaffolder.ts
+    Pop-Location
+    Write-Host ""
+}
+
 # Quality loop: format → lint → typecheck → test
 
 Write-Host "Step 1: Apply patches..." -ForegroundColor Green

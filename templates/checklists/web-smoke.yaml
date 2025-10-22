@@ -1,0 +1,14 @@
+name: "Web UI Smoke Test"
+description: "Verify web app loads and renders"
+base_url: "http://localhost:3000"
+
+checkpoints:
+  - id: home_load
+    description: "Homepage loads"
+    actions:
+      - type: navigate
+        url: "/"
+      - type: wait_for
+        selector: "body"
+      - type: screenshot
+        name: "home"
