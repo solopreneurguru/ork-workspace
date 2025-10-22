@@ -601,6 +601,27 @@ function Invoke-Deploy {
         exit 1
     }
 
+    # Auto mode: deploy based on BuildSpec targets
+    if ($Target -eq "auto") {
+        Write-ORK "DEPLOY: Running auto deployment..." "info"
+
+        Push-Location $ORK_ROOT
+        if ($Prod) {
+            npx tsx scripts/deploy-auto.ts --production
+        } else {
+            npx tsx scripts/deploy-auto.ts
+        }
+        Pop-Location
+
+        # Update session
+        $session.status = "REPORT"
+        Set-CurrentSession $session
+
+        Write-ORK "Auto deployment complete" "success"
+        return
+    }
+
+    # Manual target mode (original behavior)
     Write-ORK "DEPLOY: Deploying to $Target..." "info"
 
     Push-Location (Join-Path $ORK_ROOT "scripts")
