@@ -1,0 +1,27 @@
+# Maestro Mobile Smoke Test
+# https://maestro.mobile.dev/
+#
+# Run with: maestro test tests/mobile/smoke.yaml
+#
+# Note: Requires emulator/simulator running
+# In CI: Use maestro cloud or emulator setup
+
+appId: com.${BUNDLE_ID}.${APP_NAME_LOWER}
+
+---
+
+# Test 1: Launch app
+- launchApp
+- assertVisible: "Welcome*" # App loads
+
+# Test 2: Navigate to main screen
+- tapOn: "Get Started"
+- assertVisible: "Dashboard*"
+
+# Test 3: Basic interaction
+- tapOn: "Menu"
+- assertVisible: "Settings"
+
+# Test 4: Return to home
+- tapOn: "Home"
+- assertVisible: "Welcome*"

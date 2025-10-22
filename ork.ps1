@@ -12,6 +12,7 @@ param(
     [string]$Idea,
     [string]$Spec,
     [string]$Checklist,
+    [string]$Suite,
     [string]$Target,
     [string]$BaseUrl,
     [int]$Milestone,
@@ -511,8 +512,32 @@ function Invoke-Build {
 
 # Command: verify
 function Invoke-Verify {
-    param([string]$Checklist, [string]$BaseUrl)
+    param([string]$Checklist, [string]$Suite, [string]$BaseUrl)
 
+    # Auto suite: run appropriate tests based on BuildSpec targets
+    if ($Suite -eq "auto") {
+        Write-ORK "VERIFY: Running auto verification suite..." "info"
+
+        Push-Location $ORK_ROOT
+        if ($BaseUrl) {
+            npx tsx scripts/verify-auto.ts --web-url $BaseUrl
+        } else {
+            npx tsx scripts/verify-auto.ts
+        }
+        Pop-Location
+
+        # Update session if one exists
+        $session = Get-CurrentSession
+        if ($session) {
+            $session.status = "REVIEW"
+            Set-CurrentSession $session
+        }
+
+        Write-ORK "Auto verification complete" "success"
+        return
+    }
+
+    # Manual checklist mode
     if (-not $Checklist) {
         $Checklist = Join-Path $ORK_ROOT "checklists\auth.yaml"
     }
@@ -689,7 +714,7 @@ switch ($Command) {
     "new"    { Invoke-New -Project $Project -Idea $Idea -Spec $Spec; Show-ViewerURL }
     "plan"   { Invoke-Plan; Show-ViewerURL }
     "build"  { Invoke-Build -Milestone $Milestone; Show-ViewerURL }
-    "verify" { Invoke-Verify -Checklist $Checklist -BaseUrl $BaseUrl; Show-ViewerURL }
+    "verify" { Invoke-Verify -Checklist $Checklist -Suite $Suite -BaseUrl $BaseUrl; Show-ViewerURL }
     "review" { Invoke-Review; Show-ViewerURL }
     "deploy" { Invoke-Deploy -Target $Target -Confirm:$Confirm; Show-ViewerURL }
     "report" { Invoke-Report; Show-ViewerURL }
