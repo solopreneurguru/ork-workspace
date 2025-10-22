@@ -1,0 +1,20 @@
+name: LeadGenLite
+targets: [web]
+style: ["minimal", "professional"]
+monetization:
+  type: subscriptions
+  price_usd: 29
+auth:
+  provider: email
+deploy:
+  web: vercel
+quality_gates:
+  - ui_smoke_web
+features:
+  - lead-capture-form
+  - csv-export
+  - email-notifications
+stack:
+  web: nextjs
+  database: postgres
+description: "A minimal SaaS for capturing leads and exporting to CSV"

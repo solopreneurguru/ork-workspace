@@ -1,0 +1,128 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ork.dev/schemas/buildspec.schema.json",
+  "title": "ORK BuildSpec",
+  "description": "Universal project specification for ORK orchestrator",
+  "type": "object",
+  "required": ["name", "targets"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Project name (used for directory names, deployment)",
+      "minLength": 1,
+      "maxLength": 50,
+      "pattern": "^[a-zA-Z0-9-_]+$"
+    },
+    "targets": {
+      "type": "array",
+      "description": "Build targets (web, mobile, backend)",
+      "items": {
+        "type": "string",
+        "enum": ["web", "mobile", "backend"]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "style": {
+      "type": "array",
+      "description": "Brand vibes and design style keywords",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "monetization": {
+      "type": "object",
+      "description": "Monetization strategy",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["free", "subscriptions", "one-time", "freemium"],
+          "default": "free"
+        },
+        "price_usd": {
+          "type": "number",
+          "description": "Monthly price in USD (for subscriptions)",
+          "minimum": 0
+        }
+      },
+      "required": ["type"]
+    },
+    "auth": {
+      "type": "object",
+      "description": "Authentication configuration",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["email", "google", "github", "magic-link", "none"],
+          "default": "none"
+        }
+      },
+      "required": ["provider"]
+    },
+    "deploy": {
+      "type": "object",
+      "description": "Deployment platform configuration",
+      "properties": {
+        "web": {
+          "type": "string",
+          "enum": ["vercel", "netlify", "cloudflare-pages", "none"]
+        },
+        "mobile": {
+          "type": "string",
+          "enum": ["expo-eas", "app-store", "play-store", "none"]
+        },
+        "backend": {
+          "type": "string",
+          "enum": ["fly-io", "railway", "render", "aws", "none"]
+        }
+      }
+    },
+    "quality_gates": {
+      "type": "array",
+      "description": "Quality gates to run before deployment",
+      "items": {
+        "type": "string",
+        "enum": ["ui_smoke_web", "api_smoke", "mobile_smoke", "e2e", "unit_tests", "integration_tests"]
+      },
+      "default": [],
+      "uniqueItems": true
+    },
+    "features": {
+      "type": "array",
+      "description": "Feature list for implementation",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "stack": {
+      "type": "object",
+      "description": "Technology stack preferences",
+      "properties": {
+        "web": {
+          "type": "string",
+          "enum": ["nextjs", "react", "vue", "svelte", "astro"]
+        },
+        "backend": {
+          "type": "string",
+          "enum": ["express", "fastify", "nestjs", "go", "python-fastapi"]
+        },
+        "database": {
+          "type": "string",
+          "enum": ["postgres", "mysql", "mongodb", "sqlite", "none"]
+        }
+      }
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable project description"
+    },
+    "repository": {
+      "type": "string",
+      "description": "Git repository URL",
+      "format": "uri"
+    }
+  },
+  "additionalProperties": false
+}

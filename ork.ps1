@@ -10,6 +10,7 @@ param(
     [string]$Project,
 
     [string]$Idea,
+    [string]$Spec,
     [string]$Checklist,
     [string]$Target,
     [string]$BaseUrl,
@@ -277,18 +278,64 @@ function Invoke-Down {
 
 # Command: new
 function Invoke-New {
-    param([string]$Project, [string]$Idea)
+    param([string]$Project, [string]$Idea, [string]$Spec)
 
+    # Must have either -Spec or -Idea
+    if (-not $Spec -and -not $Idea) {
+        Write-ORK "Spec or Idea required: use -Spec <path> or -Idea '<prose>'" "error"
+        exit 1
+    }
+
+    # If using -Spec, Project name is derived from spec
+    # If using -Idea, Project name is optional (derived from AI-generated spec)
+
+    # STEP 1: Parse BuildSpec (from file or AI-generated from idea)
+    Write-Host ""
+    Write-Host "================================================================" -ForegroundColor Cyan
+    Write-Host "  ORK ORCHESTRATOR - BUILDSPEC PARSING" -ForegroundColor Cyan
+    Write-Host "================================================================" -ForegroundColor Cyan
+    Write-Host ""
+
+    if ($Spec) {
+        Write-ORK "Parsing BuildSpec from: $Spec" "info"
+        $specParseCmd = "npx tsx scripts/spec-parse.ts -spec `"$Spec`""
+    } elseif ($Idea) {
+        Write-ORK "Generating BuildSpec from idea..." "info"
+        $specParseCmd = "npx tsx scripts/spec-parse.ts -idea `"$Idea`""
+    }
+
+    # Run spec-parse.ts
+    $specOutput = Invoke-Expression $specParseCmd 2>&1
+    $specExitCode = $LASTEXITCODE
+
+    # Print output
+    $specOutput | ForEach-Object { Write-Host $_ }
+
+    if ($specExitCode -ne 0) {
+        Write-ORK "BuildSpec parsing failed" "error"
+        exit 1
+    }
+
+    # Load normalized spec
+    $specJsonPath = Join-Path $ORK_ROOT "workspace\spec.json"
+    if (-not (Test-Path $specJsonPath)) {
+        Write-ORK "workspace/spec.json not found after parsing" "error"
+        exit 1
+    }
+
+    $buildSpec = Get-Content $specJsonPath -Raw | ConvertFrom-Json
+
+    # Use project name from spec if not provided
     if (-not $Project) {
-        Write-ORK "Project name required: .\ork.ps1 new <project> -Idea '<spec>'" "error"
-        exit 1
+        $Project = $buildSpec.name
+        Write-ORK "Using project name from BuildSpec: $Project" "info"
     }
 
-    if (-not $Idea) {
-        Write-ORK "Project idea required: use -Idea '<spec>'" "error"
-        exit 1
-    }
+    Write-Host ""
+    Write-Host "----------------------------------------------------------------" -ForegroundColor Gray
+    Write-Host ""
 
+    # STEP 2: Create session
     # Generate session ID
     $sessionId = (New-Guid).Guid.Substring(0, 8)
     $timestamp = Get-Date -Format "yyyy-MM-ddTHH-mm-ss"
@@ -312,7 +359,8 @@ function Invoke-New {
     $session = @{
         id = $sessionId
         project = $Project
-        idea = $Idea
+        idea = if ($Idea) { $Idea } else { "BuildSpec: $Spec" }
+        spec = $buildSpec
         created_at = (Get-Date).ToString('s')
         status = 'PLAN'
         artifacts_dir = (Join-Path $ORK_ROOT 'artifacts')
@@ -638,7 +686,7 @@ switch ($Command) {
     "keys"   { Invoke-Keys; Show-ViewerURL }
     "up"     { Invoke-Up; Show-ViewerURL }
     "down"   { Invoke-Down; Show-ViewerURL }
-    "new"    { Invoke-New -Project $Project -Idea $Idea; Show-ViewerURL }
+    "new"    { Invoke-New -Project $Project -Idea $Idea -Spec $Spec; Show-ViewerURL }
     "plan"   { Invoke-Plan; Show-ViewerURL }
     "build"  { Invoke-Build -Milestone $Milestone; Show-ViewerURL }
     "verify" { Invoke-Verify -Checklist $Checklist -BaseUrl $BaseUrl; Show-ViewerURL }
