@@ -1,0 +1,241 @@
+# ORK Providers Configuration
+# Configure external dependencies and adapters for your project
+#
+# This file is read by the ORK build system to determine which providers to use.
+# Providers are selected based on the BuildSpec targets and features.
+#
+# Each provider has:
+# - name: Unique identifier
+# - type: Category (database, api, queue, search, storage, payment)
+# - enabled: Whether to use this provider (true/false)
+# - fallback: Provider to use if this one fails (optional)
+# - credentials: Environment variables or config (use .env for secrets)
+
+# Database Providers
+database:
+  # Primary database (chosen by spec)
+  primary:
+    name: postgres
+    type: database
+    enabled: true
+    fallback: simulator
+    credentials:
+      connectionString: ${DATABASE_URL}
+    options:
+      pool:
+        min: 2
+        max: 10
+      ssl: ${DATABASE_SSL:-false}
+
+  # Fallback simulator (always available, no credentials required)
+  simulator:
+    name: simulator
+    type: database
+    enabled: true
+    credentials: {}
+    options:
+      fixturesPath: ./fixtures/database
+      replayDelay: 50
+
+# Authentication Providers
+auth:
+  # Email/password (default)
+  email:
+    name: email
+    type: auth
+    enabled: true
+    fallback: simulator
+    credentials:
+      jwtSecret: ${JWT_SECRET}
+    options:
+      passwordMinLength: 8
+      sessionExpiry: 7d
+
+  # OAuth providers
+  google:
+    name: google-oauth
+    type: auth
+    enabled: false
+    credentials:
+      clientId: ${GOOGLE_CLIENT_ID}
+      clientSecret: ${GOOGLE_CLIENT_SECRET}
+
+  github:
+    name: github-oauth
+    type: auth
+    enabled: false
+    credentials:
+      clientId: ${GITHUB_CLIENT_ID}
+      clientSecret: ${GITHUB_CLIENT_SECRET}
+
+  # Simulator for testing
+  simulator:
+    name: auth-simulator
+    type: auth
+    enabled: true
+    credentials: {}
+    options:
+      autoApprove: true
+
+# Payment Providers
+payments:
+  # Stripe for web
+  stripe:
+    name: stripe
+    type: payment
+    enabled: true
+    fallback: simulator
+    credentials:
+      apiKey: ${STRIPE_SECRET_KEY}
+      publishableKey: ${STRIPE_PUBLISHABLE_KEY}
+    options:
+      currency: usd
+      captureMethod: automatic
+
+  # In-App Purchase for mobile
+  iap:
+    name: iap
+    type: payment
+    enabled: false
+    fallback: simulator
+    credentials:
+      appleSharedSecret: ${APPLE_SHARED_SECRET}
+      googleServiceAccountKey: ${GOOGLE_SERVICE_ACCOUNT_KEY}
+    options:
+      autoVerify: true
+
+  # Payment simulator (no real charges)
+  simulator:
+    name: payment-simulator
+    type: payment
+    enabled: true
+    credentials: {}
+    options:
+      defaultSuccess: true
+      simulateLatency: 500
+
+# Email Providers
+email:
+  # SendGrid
+  sendgrid:
+    name: sendgrid
+    type: email
+    enabled: false
+    fallback: simulator
+    credentials:
+      apiKey: ${SENDGRID_API_KEY}
+    options:
+      from: noreply@example.com
+
+  # Resend
+  resend:
+    name: resend
+    type: email
+    enabled: false
+    fallback: simulator
+    credentials:
+      apiKey: ${RESEND_API_KEY}
+    options:
+      from: noreply@example.com
+
+  # Email simulator (logs to console)
+  simulator:
+    name: email-simulator
+    type: email
+    enabled: true
+    credentials: {}
+    options:
+      logToFile: ./logs/emails.log
+
+# Storage Providers
+storage:
+  # S3-compatible storage
+  s3:
+    name: s3
+    type: storage
+    enabled: false
+    fallback: simulator
+    credentials:
+      accessKeyId: ${AWS_ACCESS_KEY_ID}
+      secretAccessKey: ${AWS_SECRET_ACCESS_KEY}
+      region: ${AWS_REGION:-us-east-1}
+    options:
+      bucket: ${S3_BUCKET}
+
+  # Local filesystem (simulator)
+  simulator:
+    name: storage-simulator
+    type: storage
+    enabled: true
+    credentials: {}
+    options:
+      path: ./storage
+      maxFileSize: 10485760 # 10MB
+
+# Search Providers
+search:
+  # Algolia
+  algolia:
+    name: algolia
+    type: search
+    enabled: false
+    fallback: simulator
+    credentials:
+      appId: ${ALGOLIA_APP_ID}
+      apiKey: ${ALGOLIA_API_KEY}
+    options:
+      indexPrefix: ${ALGOLIA_INDEX_PREFIX:-prod}
+
+  # In-memory search (simulator)
+  simulator:
+    name: search-simulator
+    type: search
+    enabled: true
+    credentials: {}
+    options:
+      caseSensitive: false
+
+# Analytics Providers
+analytics:
+  # PostHog
+  posthog:
+    name: posthog
+    type: analytics
+    enabled: false
+    fallback: simulator
+    credentials:
+      apiKey: ${POSTHOG_API_KEY}
+    options:
+      host: ${POSTHOG_HOST:-https://app.posthog.com}
+
+  # Analytics simulator (logs events)
+  simulator:
+    name: analytics-simulator
+    type: analytics
+    enabled: true
+    credentials: {}
+    options:
+      logToFile: ./logs/analytics.log
+
+# Provider Selection Rules
+# Used by ORK to auto-select providers based on BuildSpec
+
+selection:
+  # If API key is missing, use simulator
+  fallbackOnMissingCredentials: true
+
+  # Development vs Production
+  development:
+    preferSimulators: true
+    requireCredentials: false
+
+  production:
+    preferSimulators: false
+    requireCredentials: true
+
+# Provider Health Checks
+healthChecks:
+  enabled: true
+  interval: 60000 # 1 minute
+  timeout: 5000 # 5 seconds
+  retries: 3
