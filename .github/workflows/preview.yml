@@ -1,4 +1,4 @@
-name: Preview
+name: Preview - Deploy & Test
 
 on:
   pull_request:
@@ -9,8 +9,53 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Detect targets from spec
+  detect-targets:
+    name: Detect Build Targets
+    runs-on: ubuntu-latest
+    outputs:
+      has-web: ${{ steps.read-spec.outputs.has-web }}
+      has-backend: ${{ steps.read-spec.outputs.has-backend }}
+      project-name: ${{ steps.read-spec.outputs.project-name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read BuildSpec
+        id: read-spec
+        run: |
+          if [ -f "workspace/spec.json" ]; then
+            SPEC_FILE="workspace/spec.json"
+          elif [ -f "spec.json" ]; then
+            SPEC_FILE="spec.json"
+          else
+            echo "has-web=true" >> $GITHUB_OUTPUT
+            echo "has-backend=false" >> $GITHUB_OUTPUT
+            echo "project-name=unknown" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          TARGETS=$(cat $SPEC_FILE | jq -r '.targets | @json')
+          PROJECT_NAME=$(cat $SPEC_FILE | jq -r '.name // "unknown"')
+
+          echo "project-name=$PROJECT_NAME" >> $GITHUB_OUTPUT
+
+          if echo "$TARGETS" | jq -e 'index("web")' > /dev/null; then
+            echo "has-web=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-web=false" >> $GITHUB_OUTPUT
+          fi
+
+          if echo "$TARGETS" | jq -e 'index("backend")' > /dev/null; then
+            echo "has-backend=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-backend=false" >> $GITHUB_OUTPUT
+          fi
+
   deploy-and-test:
     runs-on: ubuntu-latest
+    needs: detect-targets
+    if: needs.detect-targets.outputs.has-web == 'true'
     timeout-minutes: 15
     permissions:
       pull-requests: write
@@ -106,34 +151,64 @@ jobs:
             const previewUrl = '${{ steps.deploy.outputs.preview_url }}';
             const runId = '${{ github.run_id }}';
             const prNumber = context.issue.number;
+            const projectName = '${{ needs.detect-targets.outputs.project-name }}';
 
             const statusIcon = success ? '✅' : '❌';
             const statusText = success ? 'PASSED' : 'FAILED';
 
+            // Calculate pass rate percentage
+            const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
+
             const body = `## ${statusIcon} Preview Deployment ${statusText}
 
-            **Preview URL:** ${previewUrl}
+            **Project:** ${projectName}
+            **Preview URL:** [${previewUrl}](${previewUrl})
 
-            ### UI Smoke Tests
+            ### 🧪 Test Results
+
+            #### UI Smoke Tests
             - **Status:** ${statusIcon} ${statusText}
-            - **Checkpoints:** ${passed}/${total} passed
+            - **Checkpoints:** ${passed}/${total} passed (${passRate}%)
+            ${passed > 0 ? '- ✅ ' + passed + ' checkpoints verified successfully' : ''}
+            ${total - passed > 0 ? '- ❌ ' + (total - passed) + ' checkpoints failed' : ''}
 
-            ### Artifacts
-            - 📸 [Screenshots](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId})
+            ### 📸 Artifacts
+            - [View Screenshots & Test Results](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId})
+            - [Download Artifacts](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}#artifacts)
+
+            ### 🔍 Quick Links
+            - [Preview Deployment](${previewUrl})
+            - [CI Workflow Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId})
+            - [Commit Details](https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${context.sha})
 
             <details>
-            <summary>Test Details</summary>
+            <summary>📋 Test Details</summary>
 
             \`\`\`
-            Workflow: Preview
-            Run ID: ${runId}
-            PR: #${prNumber}
-            Commit: ${context.sha.substring(0, 7)}
+            Workflow:      Preview - Deploy & Test
+            Run ID:        ${runId}
+            PR:            #${prNumber}
+            Commit:        ${context.sha.substring(0, 7)}
+            Project:       ${projectName}
+            Test Suite:    UI Smoke Tests (Playwright)
+            Pass Rate:     ${passRate}%
             \`\`\`
             </details>
 
+            <details>
+            <summary>💡 Next Steps</summary>
+
+            ${success ?
+              '✅ All tests passed! Your changes are ready for review.' :
+              '❌ Some tests failed. Please review the screenshots and logs above.'}
+
+            - Review the [test artifacts](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId})
+            - Check the [preview deployment](${previewUrl})
+            ${!success ? '- Fix failing tests and push updates to re-run verification' : ''}
+            </details>
+
             ---
-            🤖 *Automated preview deployment with UI verification*`;
+            🤖 *Automated preview deployment powered by [ORK](https://github.com/anthropics/ork) · Target-aware CI*`;
 
             // Find existing comment
             const { data: comments } = await github.rest.issues.listComments({
