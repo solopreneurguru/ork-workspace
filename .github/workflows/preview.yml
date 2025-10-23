@@ -56,26 +56,51 @@ jobs:
     name: Preview - Deploy & Test
     runs-on: ubuntu-latest
     needs: detect-targets
-    if: needs.detect-targets.outputs.has-web == 'true'
     timeout-minutes: 20
     permissions:
       pull-requests: write
       contents: read
+    env:
+      HAS_WEB: ${{ needs.detect-targets.outputs.has-web }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check if preview should run
+        id: should_run
+        run: |
+          if [ "$HAS_WEB" != "true" ]; then
+            echo "skip_reason=No web target in spec" >> $GITHUB_OUTPUT
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          elif [ -z "$VERCEL_TOKEN" ]; then
+            echo "skip_reason=Missing VERCEL_TOKEN secret" >> $GITHUB_OUTPUT
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip preview deployment
+        if: steps.should_run.outputs.should_run != 'true'
+        run: |
+          echo "⏭️ Skipping preview deployment"
+          echo "Reason: ${{ steps.should_run.outputs.skip_reason }}"
+          exit 0
+
       - name: Setup Node
+        if: steps.should_run.outputs.should_run == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
       - name: Install root deps
+        if: steps.should_run.outputs.should_run == 'true'
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm i --no-audit --no-fund; fi
 
       - name: Install & build web
+        if: steps.should_run.outputs.should_run == 'true'
         working-directory: apps/web
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm i --no-audit --no-fund; fi
@@ -83,6 +108,7 @@ jobs:
 
       # Create the missing .vercel/project.json from secrets so CLI knows where to deploy
       - name: Create Vercel project file
+        if: steps.should_run.outputs.should_run == 'true'
         working-directory: apps/web
         run: |
           mkdir -p .vercel
@@ -94,16 +120,14 @@ jobs:
           JSON
 
       - name: Vercel pull (preview env)
+        if: steps.should_run.outputs.should_run == 'true'
         working-directory: apps/web
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: npx vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
 
       - name: Deploy to Vercel (preview)
+        if: steps.should_run.outputs.should_run == 'true'
         id: deploy
         working-directory: apps/web
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -e
           # --prebuilt uses the build output we already created
@@ -112,6 +136,7 @@ jobs:
           echo "Deployed preview: $URL"
 
       - name: UI smoke tests (soft-fail if no checklists)
+        if: steps.should_run.outputs.should_run == 'true'
         env:
           PREVIEW_URL: ${{ steps.deploy.outputs.preview_url }}
         run: |
@@ -125,7 +150,7 @@ jobs:
           fi
 
       - name: Upload UI screenshots
-        if: always()
+        if: always() && steps.should_run.outputs.should_run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ui-screenshots
@@ -140,14 +165,27 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const shouldRun = '${{ steps.should_run.outputs.should_run }}' === 'true';
+            const skipReason = '${{ steps.should_run.outputs.skip_reason }}';
             const previewUrl = '${{ steps.deploy.outputs.preview_url }}';
             const prNumber = context.issue.number;
-            const success = !!previewUrl;
-            const body = `**Preview ${success ? 'READY' : 'FAILED'}**
+
+            let body;
+            if (!shouldRun) {
+              body = `**Preview SKIPPED**
+
+            ${skipReason}
+
+            _Automated preview deployment._`;
+            } else {
+              const success = !!previewUrl;
+              body = `**Preview ${success ? 'READY' : 'FAILED'}**
 
             ${success ? `Preview URL: ${previewUrl}` : 'Preview URL not available'}
 
             _Automated preview deployment._`;
+            }
+
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
