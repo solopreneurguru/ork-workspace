@@ -105,6 +105,8 @@
     </select>
     <button id="refreshBtn">Refresh</button>
     <button id="clearBtn">Clear Display</button>
+    <button id="sessionBtn" title="View latest session details">📂 Latest Session</button>
+    <button id="artifactsBtn" title="Browse all artifacts">📸 Artifacts</button>
     <span class="status" id="status">Initializing...</span>
   </div>
   <div id="logContainer"></div>
@@ -120,6 +122,8 @@
     const status = document.getElementById('status');
     const refreshBtn = document.getElementById('refreshBtn');
     const clearBtn = document.getElementById('clearBtn');
+    const sessionBtn = document.getElementById('sessionBtn');
+    const artifactsBtn = document.getElementById('artifactsBtn');
 
     // Detect if user has scrolled up
     logContainer.addEventListener('scroll', () => {
@@ -266,6 +270,28 @@
     clearBtn.addEventListener('click', () => {
       logContainer.innerHTML = '';
       lastSize = 0;
+    });
+
+    sessionBtn.addEventListener('click', async () => {
+      // Try to load current session JSON
+      try {
+        const res = await fetch('../../workspace/current.json');
+        if (res.ok) {
+          const session = await res.json();
+          const sessionId = session.id;
+          window.open(`../../workspace/sessions/${sessionId}/`, '_blank');
+        } else {
+          // Fallback: open sessions directory
+          window.open('../../workspace/sessions/', '_blank');
+        }
+      } catch (err) {
+        console.error('Failed to load session:', err);
+        window.open('../../workspace/sessions/', '_blank');
+      }
+    });
+
+    artifactsBtn.addEventListener('click', () => {
+      window.open('../../artifacts/', '_blank');
     });
 
     // Initialize
