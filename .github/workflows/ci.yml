@@ -202,8 +202,13 @@ jobs:
     needs: detect-targets
     if: |
       needs.detect-targets.outputs.has-mobile == 'true' &&
-      (startsWith(github.ref, 'refs/tags/') || contains(github.event.pull_request.labels.*.name, 'needs-mobile-build'))
+      (
+        startsWith(github.ref, 'refs/tags/') ||
+        (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'needs-mobile-build'))
+      )
     timeout-minutes: 60
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -214,28 +219,29 @@ jobs:
           node-version: '20'
 
       - name: Setup Expo
+        if: env.EXPO_TOKEN != ''
         uses: expo/expo-github-action@v8
         with:
           expo-version: latest
           eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+          token: ${{ env.EXPO_TOKEN }}
 
       - name: Install dependencies
         working-directory: apps/mobile
         run: npm ci
 
       - name: EAS Build
-        if: ${{ secrets.EXPO_TOKEN != '' }}
+        if: env.EXPO_TOKEN != ''
         working-directory: apps/mobile
         run: |
           # Build for both platforms (preview profile)
           eas build --platform all --profile preview --non-interactive || echo "Build submitted"
         continue-on-error: true
         env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_TOKEN: ${{ env.EXPO_TOKEN }}
 
       - name: Skip mobile build (no EXPO_TOKEN)
-        if: ${{ secrets.EXPO_TOKEN == '' }}
+        if: env.EXPO_TOKEN == ''
         run: |
           echo "⚠️ EXPO_TOKEN not set. Skipping mobile build."
           echo "Add EXPO_TOKEN to repository secrets to enable mobile builds."
